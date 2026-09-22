@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tracking Check</title>
+    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="/report.css" />
+  </head>
+  <body>
+    <main>
+      <header class="page">
+        <h1>Tracking Check</h1>
+        <p class="sub">Paste a lander or quiz URL. It opens in a real browser, the quiz is answered, the phone link is clicked, and GTM, Pabbly, Voluum, call tracking and Jitsu are verified.</p>
+      </header>
+
+      <form id="form" class="card form" autocomplete="off">
+        <label class="sr-only" for="url">URL to check</label>
+        <input id="url" name="url" type="url" required spellcheck="false" placeholder="https://example.com/quiz/abcd?utm_source=…" />
+        <button id="run" type="submit">Check</button>
+      </form>
+      <p id="error" class="error" role="alert" hidden></p>
+
+      <section id="status" class="card status" hidden>
+        <div class="status-head">
+          <span class="spinner" aria-hidden="true"></span>
+          <strong id="statusText">Starting…</strong>
+        </div>
+        <ol id="path" class="path"></ol>
+      </section>
+
+      <section id="result" hidden>
+        <div class="result-head">
+          <h2>Final result</h2>
+          <span id="overall" class="pill"></span>
+        </div>
+        <p id="resultMeta" class="sub"></p>
+
+        <table class="final">
+          <thead>
+            <tr><th>Check</th><th>Result</th><th class="st">Status</th></tr>
+          </thead>
+          <tbody id="checks"></tbody>
+        </table>
+
+        <div class="actions">
+          <a id="openReport" class="button" href="#" target="_blank" rel="noopener">Open full report ↗</a>
+          <button id="again" type="button" class="button ghost">Check another URL</button>
+        </div>
+
+        <h2 class="details-title">Check details</h2>
+        <div id="details" class="report"></div>
+      </section>
+    </main>
+    <script src="app.js"></script>
+  </body>
+</html>

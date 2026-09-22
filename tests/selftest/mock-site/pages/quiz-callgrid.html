@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>ChatQuiz — CallGrid</title>
+  <script src="/common.js"></script>
+  <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s);j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-TEST123');</script>
+  <script src="https://adstia-scripts.netlify.app/jitsu-script.js" async></script>
+  <style>body{font-family:sans-serif;margin:0}#chat{max-width:520px;margin:20px auto;display:flex;flex-direction:column;gap:8px}.bubble{padding:10px 14px;border-radius:14px}.bot{background:#eef}.user{background:#dfd;align-self:flex-end}</style>
+</head>
+<body>
+  <div id="chat"><p class="bubble bot">Answer 2 quick questions.</p></div>
+  <div id="done" hidden><h2>Thanks! Call us now</h2><a href="tel:+18445550199" onclick="handlePhoneClick(event)">(844) 555-0199</a></div>
+  <script id="__NEXT_DATA__" type="application/json">{"props":{"pageProps":{"quiz":{"provider":"callgrid","callgridCampaignSourceId":"CG-SRC-777","cta":{"callCallgrid":true,"phone":"+18445550199"}}}},"page":"/quiz-callgrid"}</script>
+  <script>
+    var BAD = location.search.indexOf('bad=1') >= 0;
+    window.QUIZ = {
+      typingMs: 250,
+      questions: [
+        { key: 'coverage', q: 'Are you looking for coverage?', answers: ['Yes', 'No'] },
+        { key: 'age_range', q: 'What is your age range?', answers: ['18-64', '65+'] },
+      ],
+      mutateQuizData: function (p) {
+        if (p.question_key !== 'zip') return;
+        // correct: collectedzipcode · broken: the Ringba key on a CallGrid site
+        if (BAD) p.ringba_zip = p.answer_value; else p.collectedzipcode = p.answer_value;
+      },
+      onZip: function (zip) {
+        var body = { callgridCampaignSourceId: 'CG-SRC-777' };
+        if (BAD) { window._rgba_tags = window._rgba_tags || []; window._rgba_tags.push({ ringba_zip: zip }); body.ringba_zip = zip; }
+        else body.collectedzipcode = zip;
+        fetch('https://api.callgrid.test/v1/visitor', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+        document.getElementById('done').hidden = false;
+      },
+    };
+  </script>
+  <script src="/quiz-engine.js"></script>
+</body>
+</html>

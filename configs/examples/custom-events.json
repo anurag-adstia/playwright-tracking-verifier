@@ -1,0 +1,25 @@
+{
+  "name": "example-custom-events",
+  "url": "https://example-lander.com/",
+  "type": "lander",
+  "tracking": { "gtm": true, "jitsu": true, "clarity": "auto" },
+  "expected": {
+    "jitsu": {
+      "events": {
+        "cta_click": { "fields": { "cta_position": { "type": "string", "oneOf": ["hero", "footer"] } } },
+        "scroll_depth": { "trigger": "any", "required": "warn-if-missing", "fields": { "percent": "number" } },
+        "lead_submit": null
+      }
+    },
+    "gtm": {
+      "events": {
+        "ctaButtonClick": { "fields": { "data.cta_position": { "type": "string", "required": false } } }
+      }
+    },
+    "identity": {
+      "sessionId": { "source": "sessionStorage", "key": "session_id", "required": true }
+    }
+  },
+  "selectors": { "cta": "[data-cta=primary]", "exclude": ".cookie-banner" },
+  "duplicates": { "windowMs": 1500, "allowRepeat": ["scroll_depth"] }
+}

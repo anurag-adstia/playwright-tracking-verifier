@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Congrats — you qualify</title>
+  <meta name="view-type" content="congrats">
+  <script src="/common.js"></script>
+  <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s);j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-TEST123');</script>
+  <script src="https://adstia-scripts.netlify.app/jitsu-script.js" async></script>
+  <!-- <Script id="ringba-script-med" src={`//b-js.ringba.com/${RINGBA_ID}`} strategy="afterInteractive" /> -->
+  <script id="ringba-script-med" src="//b-js.ringba.com/CA-TEST-RINGBA" async data-nscript="afterInteractive"></script>
+  <style>body{font-family:sans-serif;margin:40px}</style>
+</head>
+<body>
+  <main>
+    <h1>Congratulations! You may qualify.</h1>
+    <p>Call now to speak with a licensed agent:</p>
+    <a class="call" href="tel:+18002650896" onclick="handlePhoneClick(event)">(800) 265-0896</a>
+  </main>
+  <script>
+    // <PushDataToRingbaTags />
+    window._rgba_tags = window._rgba_tags || [];
+    window._rgba_tags.push({ type: 'User' });
+    window._rgba_tags.push({ ringba_zip: localStorage.getItem('zip') || '' });
+  </script>
+</body>
+</html>

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>ChatQuiz — Ringba</title>
+  <meta name="view-type" content="chatquiz">
+  <script src="/common.js"></script>
+  <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s);j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-TEST123');</script>
+  <script src="https://adstia-scripts.netlify.app/jitsu-script.js" async></script>
+  <script>(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);})(window, document, "clarity", "script", "clar1ty01");</script>
+  <style>body{font-family:sans-serif;margin:0}header{padding:10px;background:#eee}#chat{max-width:520px;margin:20px auto;display:flex;flex-direction:column;gap:8px}.bubble{padding:10px 14px;border-radius:14px;max-width:80%}.bot{background:#eef}.user{background:#dfd;align-self:flex-end}.answers{display:flex;gap:8px;flex-wrap:wrap}button{padding:10px 16px;font-size:16px}</style>
+</head>
+<body>
+  <header>Speak to an agent: <a href="tel:+18002650896" onclick="handlePhoneClick(event)">(800) 265-0896</a></header>
+  <div id="chat"><p class="bubble bot">Hi! Let's see which benefits you qualify for.</p></div>
+  <script id="__NEXT_DATA__" type="application/json">{"props":{"pageProps":{"quiz":{"provider":"ringba","ringbaScriptId":"CA-TEST-RINGBA","cta":{"callRingba":true,"phone":"+18002650896"},"zipKey":"ringba_zip"}}},"page":"/quiz"}</script>
+  <script>
+    window.QUIZ = {
+      questions: [
+        { key: 'age_range', q: 'How old are you?', answers: ['Under 65', '65 or older'] },
+        { key: 'has_medicare', q: 'Do you currently have Medicare Part A and B?', answers: ['Yes', 'No'] },
+        { key: 'beneficiary', q: 'Who is the coverage for?', answers: ['Myself', 'My spouse'] },
+      ],
+      onZip: function (zip, answers) {
+        localStorage.setItem('zip', zip);
+        var ids = tqaIds();
+        jitsuTrack('lead_submit', {
+          user_id: ids.user_id, session_id: ids.session_id, device: 'desktop', browser: 'chrome', os: 'windows',
+          domainName: location.host, domainSlug: 'mock-quiz', finalUrl: location.origin + '/congrats',
+          screenResolution: screen.width + 'x' + screen.height, beneficiary: answers.beneficiary, age: answers.age_range,
+        });
+        setTimeout(function () { location.href = '/congrats'; }, 400);
+      },
+    };
+  </script>
+  <script src="/quiz-engine.js"></script>
+</body>
+</html>

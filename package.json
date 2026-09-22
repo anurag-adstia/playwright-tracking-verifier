@@ -1,0 +1,20 @@
+{
+  "name": "playwright-tracking-verifier",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Playwright check of GTM, Pabbly, Voluum, Ringba and Jitsu on quiz pages.",
+  "type": "commonjs",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "test": "playwright test",
+    "typecheck": "tsc --noEmit",
+    "install:browsers": "playwright install chromium",
+    "start": "tsx src/web/server.ts"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}

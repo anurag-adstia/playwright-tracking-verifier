@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Broken Mock Lander</title>
+  <script src="/common.js"></script>
+  <!-- wrong container -->
+  <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s);j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-WRONG99');</script>
+  <script src="https://adstia-scripts.netlify.app/jitsu-script.js" async></script>
+  <!-- no Clarity -->
+</head>
+<body>
+  <main>
+    <h1>Broken tracking</h1>
+    <button id="cta" onclick="brokenCta(event)">Get Started</button>
+    <a href="tel:+18002650896" onclick="brokenPhone(event)">(800) 265-0896</a>
+  </main>
+  <script>
+    function brokenCta(e) {
+      var ids = tqaIds();
+      // duplicate + wrong cta_text
+      jitsuTrack('cta_click', { cta_text: 'Start Now', session_id: ids.session_id, userId: ids.user_id });
+      jitsuTrack('cta_click', { cta_text: 'Start Now', session_id: ids.session_id, userId: ids.user_id });
+      pushDL('ctaButtonClick', { cta_text: 'Get Started', session_id: ids.session_id, user_id: ids.user_id, anonymous_id: ids.anonymous_id });
+      pushDL('ctaButtonClick', { cta_text: 'Get Started', session_id: ids.session_id, user_id: ids.user_id, anonymous_id: ids.anonymous_id });
+    }
+    function brokenPhone(e) {
+      var ids = tqaIds();
+      // wrong number to Jitsu, numeric session_id (type error), GTM without user_id
+      jitsuTrack('phone_number_click', { phone: '8005551234', session_id: 12345, userId: ids.user_id });
+      pushDL('phoneNumberClick', { phone: '8002650896', session_id: ids.session_id, anonymous_id: ids.anonymous_id });
+      console.error('GTM tag "Phone Conversion" failed: dataLayer variable data.user_id is undefined');
+    }
+  </script>
+</body>
+</html>

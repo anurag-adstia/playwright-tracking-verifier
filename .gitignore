@@ -1,0 +1,10 @@
+node_modules/
+reports/*
+!reports/.gitkeep
+screenshots/*
+!screenshots/.gitkeep
+traces/*
+!traces/.gitkeep
+test-results/
+playwright-report/
+.env
