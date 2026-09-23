@@ -25,6 +25,19 @@ export interface PageScan {
   links: Array<{ text: string; kind: string; href: string }>;
   /** Ringba / CallGrid <script> tags. */
   scripts: Array<{ id: string; src: string }>;
+  /** Voluum runtime: dtpCallback installed, and the click id it stored. */
+  dtp: boolean;
+  clickId: string | null;
+  /** GTM container id the app exposes (layout.tsx: window.cf_variable.GTM_ID). */
+  cfGtmId: string | null;
+  /** GTM <noscript> fallback (googletagmanager.com/ns.html?id=…). */
+  gtmNoscript: string | null;
+  /** window.clarity installed by the Clarity tag. */
+  clarity: boolean;
+  /** Globals the templates install: VoluumScripts, adstiaScripts, jitsu, CallGrid, cf_variable. */
+  globals: Record<string, boolean | string>;
+  /** localStorage.quizValues — what the quiz stored (ZIP lookup result, answers). */
+  quizValues: Record<string, unknown>;
 }
 
 export interface PhoneClick {
@@ -42,14 +55,35 @@ export class Capture {
   readonly requests: Req[] = [];
   readonly pushes: Push[] = [];
   readonly documents = new Map<string, string>();
+  /** Script / JSON bodies: the quiz config (ringbaScriptId, callgridCampaignSourceId, pabblyUrl…) is bundled into them. */
+  readonly bodies: Array<{ url: string; text: string }> = [];
   readonly scans: PageScan[] = [];
   readonly consoleErrors: string[] = [];
   phoneClick?: PhoneClick;
   cookies: Array<{ name: string; value: string }> = [];
+  private siteRoot = '';
   private readonly start = Date.now();
   private readonly pending: Promise<unknown>[] = [];
 
-  async attach(context: BrowserContext): Promise<void> {
+  /** The site itself (its own chunks), not third-party scripts. */
+  private sameSite(url: string): boolean {
+    try {
+      const host = new URL(url).hostname.replace(/^www\./, '');
+      const root = host.split('.').slice(-2).join('.');
+      return !!this.siteRoot && (host === this.siteRoot || root === this.siteRoot);
+    } catch {
+      return false;
+    }
+  }
+
+  async attach(context: BrowserContext, siteUrl?: string): Promise<void> {
+    if (siteUrl) {
+      try {
+        this.siteRoot = new URL(siteUrl).hostname.replace(/^www\./, '').split('.').slice(-2).join('.');
+      } catch {
+        /* validated by the caller */
+      }
+    }
     await context.exposeBinding('__qaPush', ({ frame }, global: Push['global'], json: string) => {
       this.pushes.push({ ts: Date.now() - this.start, global, data: JSON.parse(json), pageUrl: frame.url() });
     });
@@ -70,6 +104,14 @@ export class Capture {
       rec.status = res.status();
       if (rec.resourceType === 'document' && safe(() => res.request().frame().parentFrame()) === null) {
         this.pending.push(res.text().then((t) => this.documents.set(res.url(), t), () => undefined));
+      }
+      // The quiz config lives in the page's own JS chunks / JSON; keep them for key lookups.
+      if (['script', 'fetch', 'xhr'].includes(rec.resourceType) && this.sameSite(rec.url) && res.status() < 300) {
+        this.pending.push(
+          res.text().then((t) => {
+            if (t.length <= 4_000_000) this.bodies.push({ url: rec.url, text: t });
+          }, () => undefined),
+        );
       }
     });
     context.on('requestfailed', (r) => {
@@ -134,6 +176,39 @@ export class Capture {
           scripts: [...document.querySelectorAll('script')]
             .filter((s) => /ringba|callgrid/i.test(s.id + s.src))
             .map((s) => ({ id: s.id, src: s.getAttribute('src') ?? '' })),
+          cfGtmId: (window as unknown as { cf_variable?: { GTM_ID?: string } }).cf_variable?.GTM_ID ?? null,
+          gtmNoscript:
+            [...document.querySelectorAll('noscript')]
+              .map((n) => n.textContent || n.innerHTML)
+              .find((t) => /googletagmanager\.com\/ns\.html/.test(t))
+              ?.match(/id=(GTM-[\w-]+)/)?.[1] ?? null,
+          clarity: typeof (window as unknown as { clarity?: unknown }).clarity === 'function',
+          globals: (() => {
+            const w = window as unknown as Record<string, any>;
+            return {
+              VoluumScripts: !!w.VoluumScripts,
+              adstiaScripts: !!w.adstiaScripts,
+              jitsu: !!w.jitsu,
+              CallGrid: typeof w.CallGrid === 'function',
+              cf_GTM_ID: w.cf_variable?.GTM_ID ?? '',
+              cf_JITSU_EVENT_URL: w.cf_variable?.JITSU_EVENT_URL ?? '',
+            };
+          })(),
+          quizValues: (() => {
+            try {
+              return JSON.parse(localStorage.getItem('quizValues') || '{}');
+            } catch {
+              return {};
+            }
+          })(),
+          dtp: typeof (window as unknown as { dtpCallback?: unknown }).dtpCallback === 'function',
+          clickId: (() => {
+            try {
+              return sessionStorage.getItem('clickId');
+            } catch {
+              return null;
+            }
+          })(),
         };
       }, voluumHost)
       .catch(() => undefined);

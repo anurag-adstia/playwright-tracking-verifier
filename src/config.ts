@@ -24,7 +24,23 @@ export interface SiteConfig {
    * Empty (default) = track.<site domain> or gotrack.<site domain>.
    */
   voluumHostPattern: string;
+  /** The loader that sets Voluum up on our landers. */
+  voluumLoaderPattern: string;
+  /** VoluumScripts.init() only runs for these paths (landingSlugs / offerSlugs in layout.tsx). */
+  voluumPathPattern: string;
+  /** Voluum's own request on the custom domain (dtpCallback's script). */
   voluumScriptPattern: string;
+  /**
+   * Optional expected IDs. When set, the check compares what the page really uses against them
+   * ("is the CORRECT id used?"); when unset it only verifies that an id is present and consistent.
+   */
+  gtmContainerId?: string;
+  clarityProjectId?: string;
+  ringbaId?: string;
+  callgridCampaignSourceId?: string;
+  /** The loader that sets Jitsu up on our landers. */
+  jitsuLoaderPattern: string;
+  /** The Jitsu library it loads. */
   jitsuScriptPattern: string;
   maxSteps: number;
 }
@@ -57,7 +73,10 @@ export const DEFAULTS: Omit<SiteConfig, 'name' | 'url'> = {
   leadEvent: 'Lead',
   pabblyPattern: 'save-quiz-module-submission',
   voluumHostPattern: '',
+  voluumLoaderPattern: 'voluum-scripts\\.js',
+  voluumPathPattern: '/(landers|quiz)/',
   voluumScriptPattern: '/d/\\.js(\\?|$)',
+  jitsuLoaderPattern: 'jitsu-script\\.js',
   jitsuScriptPattern: '(adstiacms|jitsu)[^/]*/p\\.js(\\?|$)',
   maxSteps: 30,
 };
@@ -76,8 +95,9 @@ export function makeSite(input: SiteConfigInput & { name?: string }): SiteConfig
     inputs: [...(input.inputs ?? []), ...DEFAULTS.inputs],
   };
   if (!cfg.voluumHostPattern) {
+    // track. / gotrack. / tracking. / gotracking. on the site's own domain.
     const root = new URL(cfg.url).hostname.split('.').slice(-2).join('\\.');
-    cfg.voluumHostPattern = `^(go)?track\\.${root}$`;
+    cfg.voluumHostPattern = `^(go)?track(ing)?\\.${root}$`;
   }
   return cfg;
 }

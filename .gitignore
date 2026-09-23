@@ -8,3 +8,6 @@ traces/*
 test-results/
 playwright-report/
 .env
+
+# reference only: the landers repo, not part of this project
+final-expense-final/

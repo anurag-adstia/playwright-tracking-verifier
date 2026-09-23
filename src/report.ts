@@ -47,12 +47,12 @@ function finalResult(r: RunResult, id: string): string {
 }
 
 function site(r: RunResult, id: string, embed: boolean): string {
-  if (r.error) return `<section class="site"><header class="site-head"><h2>${esc(r.site)}</h2>${pill('fail')}</header><p class="err">Run failed: ${esc(r.error)}</p></section>`;
+  if (r.error) return `<section class="site site-card"><header class="site-head"><h2>${esc(r.site)}</h2>${pill('fail')}</header><p class="err">Run failed: ${esc(r.error)}</p></section>`;
   const head = embed
     ? ''
     : `<header class="site-head"><div><h2>${esc(r.site)}</h2><a class="url" href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.url)}</a></div>${pill(overall(r.sections))}</header>${finalResult(r, id)}`;
   const path = `<details class="path"${embed ? '' : ' open'}><summary>Quiz path <span class="sub">${r.notes.length} step(s)</span></summary><ol>${r.notes.map((n) => `<li>${esc(n)}</li>`).join('') || '<li>no quiz steps</li>'}</ol></details>`;
-  return `<section class="site">${head}<div class="checks">${r.sections.map((s, i) => section(s, i + 1, id)).join('')}</div>${path}</section>`;
+  return `<section class="site site-card">${head}<div class="checks">${r.sections.map((s, i) => section(s, i + 1, id)).join('')}</div>${path}</section>`;
 }
 
 /**
@@ -62,9 +62,22 @@ function site(r: RunResult, id: string, embed: boolean): string {
 export function renderReport(runs: RunResult[], startedAt: Date, opts: { embed?: boolean } = {}): string {
   const embed = !!opts.embed;
   const body = runs.map((r, i) => site(r, `site${i + 1}`, embed));
+  const totals = runs.reduce(
+    (acc, r) => {
+      const mark = r.error ? 'fail' : overall(r.sections);
+      acc[mark]++;
+      return acc;
+    },
+    { ok: 0, warn: 0, fail: 0 } as Record<Mark, number>,
+  );
   const header = embed
     ? ''
-    : `<header class="page"><h1>Tracking Report</h1><p class="sub">${esc(startedAt.toLocaleString())} · ${runs.length} site(s) · GTM · Pabbly · Voluum · call tracking · Jitsu</p></header>`;
+    : `<header class="page">
+        <div class="page-kicker">Quality assurance</div>
+        <div class="page-title"><div><h1>Tracking Report</h1><p class="sub">${esc(startedAt.toLocaleString())} · ${runs.length} site(s)</p></div><span class="report-badge">Playwright</span></div>
+        <p class="page-description">A visual summary of tracker integration, event delivery, provider checks, and quiz flow behavior.</p>
+        <div class="summary"><div class="summary-item ok"><strong>${totals.ok}</strong><span>Passing</span></div><div class="summary-item warn"><strong>${totals.warn}</strong><span>Warnings</span></div><div class="summary-item fail"><strong>${totals.fail}</strong><span>Failing</span></div></div>
+      </header>`;
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Tracking Report</title>
@@ -91,12 +104,21 @@ export const TOKENS = `
 /** Page frame — only for the standalone report (the web UI has its own). */
 const PAGE_CSS = `
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--text);font:15px/1.6 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
-main{max-width:940px;margin:0 auto;padding:40px 20px 64px}
-h1{font-size:26px;letter-spacing:-.02em;margin:0 0 6px}
-header.page{margin-bottom:26px}
+body{margin:0;background:radial-gradient(circle at 85% -10%,rgba(91,140,255,.16),transparent 34%),var(--bg);color:var(--text);font:15px/1.6 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+main{max-width:1080px;margin:0 auto;padding:48px 24px 72px}
+h1{font-size:clamp(28px,4vw,40px);letter-spacing:-.04em;line-height:1.1;margin:0 0 6px}
+header.page{margin-bottom:30px}
 a{color:var(--accent)}
-@media (max-width:640px){main{padding:24px 14px 48px}}
+.page-kicker{color:var(--accent);font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;margin-bottom:10px}
+.page-title{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}
+.page-description{max-width:680px;color:var(--muted);margin:14px 0 20px}
+.report-badge{border:1px solid var(--line);border-radius:999px;color:var(--muted);font-size:12px;font-weight:700;padding:5px 11px}
+.summary{display:flex;gap:10px;flex-wrap:wrap}
+.summary-item{display:flex;align-items:baseline;gap:8px;border:1px solid var(--line);border-radius:10px;background:var(--card);padding:8px 13px;box-shadow:var(--shadow)}
+.summary-item strong{font-size:19px;line-height:1}
+.summary-item span{color:var(--muted);font-size:12px;font-weight:600}
+.summary-item.ok strong{color:var(--ok)}.summary-item.warn strong{color:var(--warn)}.summary-item.fail strong{color:var(--fail)}
+@media (max-width:640px){main{padding:28px 14px 48px}.page-title{display:block}.report-badge{display:inline-block;margin-top:14px}}
 `;
 
 /**
@@ -110,6 +132,7 @@ h3{font-size:15px;margin:0;display:flex;align-items:center;gap:8px}
 .url{font-size:12.5px;word-break:break-all;display:inline-block;max-width:100%}
 .site{margin-bottom:32px}
 .site:last-child{margin-bottom:0}
+.site-card{background:color-mix(in srgb,var(--card) 72%,transparent);border:1px solid var(--line);border-radius:16px;padding:22px;box-shadow:0 14px 34px rgba(0,0,0,.12)}
 .site-head{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:14px}
 
 .pill{display:inline-flex;align-items:center;gap:6px;padding:3px 11px;border-radius:999px;font-size:12.5px;font-weight:600;white-space:nowrap;border:1px solid transparent;line-height:1.5}
@@ -130,7 +153,8 @@ tr.fail>th,tr.fail>th a{color:var(--fail)}
 td .sub,th .sub{display:block;margin-top:3px}
 
 .checks{display:flex;flex-direction:column;gap:14px}
-.check{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 16px 4px;box-shadow:var(--shadow)}
+.check{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 16px 4px;box-shadow:var(--shadow);transition:border-color .15s ease,transform .15s ease}
+.check:hover{border-color:color-mix(in srgb,var(--accent) 55%,var(--line));transform:translateY(-1px)}
 .check-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
 .head-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
 .num{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;background:var(--card2);border:1px solid var(--line);font-size:12px;color:var(--muted);flex:none}
@@ -145,6 +169,7 @@ details.path ol{margin:0 0 14px;padding-left:22px;color:var(--muted);font-size:1
 details.path li{margin:3px 0}
 .err{color:var(--fail)}
 @media (max-width:640px){
+  .site-card{padding:14px}
   th,td{padding:10px 12px}
   table.final tbody th,table.kv th,table.issues tbody th{width:auto}
   th.st,td.st{width:auto;text-align:left}
