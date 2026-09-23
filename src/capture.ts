@@ -238,6 +238,9 @@ function safe<T>(fn: () => T): T | undefined {
  * its own push that chains to the previous one (the re-entry is recorded once).
  */
 const INIT_SCRIPT = `(() => {
+  // esbuild (tsx) rewrites named functions with __name(); page.evaluate ships that source into the
+  // page, so the helper has to exist here or every read throws ReferenceError.
+  window.__name = window.__name || function (f) { return f; };
   if (window.__qaInstalled) return;
   window.__qaInstalled = true;
   function send(global, v) {

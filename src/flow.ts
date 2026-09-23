@@ -10,6 +10,11 @@ interface Field {
   placeholder: string;
   maxLength: number;
   max: number;
+  /**
+   * Text shown in front of the field, which the quiz prepends to what you type
+   * (the chat year input shows "19" and accepts 2 digits → submits 19 + "65").
+   */
+  prefix: string;
   /** <select> option texts */
   options: string[];
 }
@@ -35,16 +40,19 @@ interface Ui {
  */
 export async function walkQuiz(page: Page, cfg: SiteConfig, notes: string[]): Promise<void> {
   const congrats = new RegExp(cfg.congratsPattern, 'i');
+  const knownTels = new Set(await telHrefs(page));
   let lastSig = '';
   for (let step = 0; step < cfg.maxSteps && !congrats.test(page.url()); step++) {
     // The first question is the slow one: the chat types its intro before showing any answer.
     const timeout = step === 0 ? cfg.firstQuestionTimeout : cfg.stepTimeout;
-    const ui = await nextUi(page, lastSig, congrats, timeout);
+    // Only a phone that appears after an answer ends the quiz, so pass the ones already on screen.
+    const ui = await nextUi(page, lastSig, congrats, timeout, step ? knownTels : undefined);
     if (!ui) {
       const secs = Math.round(timeout / 1000);
-      if (!congrats.test(page.url())) {
-        notes.push(step ? `quiz ended after ${step} step(s): no new question within ${secs}s` : `no quiz question appeared within ${secs}s`);
-      }
+      if (congrats.test(page.url())) return;
+      // The phone number appearing is the normal end of a chat quiz, not a stall.
+      if (step && (await newTel(page, knownTels))) notes.push(`quiz finished after ${step} step(s): the phone number appeared`);
+      else notes.push(step ? `quiz ended after ${step} step(s): no new question within ${secs}s` : `no quiz question appeared within ${secs}s`);
       return;
     }
     lastSig = ui.sig;
@@ -65,7 +73,7 @@ export async function walkQuiz(page: Page, cfg: SiteConfig, notes: string[]): Pr
         }
       }
       // Next buttons are often disabled until the fields are filled: read the page again.
-      const after = await page.evaluate(readUi).catch(() => undefined);
+      const after = await readPage(page).catch(() => undefined);
       await clickNext(page, !!after?.hasNext);
       continue;
     }
@@ -77,7 +85,7 @@ export async function walkQuiz(page: Page, cfg: SiteConfig, notes: string[]): Pr
     // Multi-select, or "select then Continue": nothing new appeared, but a Continue button did.
     // Long enough that a chat still typing its next question is not mistaken for one of those.
     await page.waitForTimeout(2500);
-    const after = await page.evaluate(readUi).catch(() => undefined);
+    const after = await readPage(page).catch(() => undefined);
     if (after && after.sig === ui.sig && after.hasNext) await clickNext(page, true);
   }
 }
@@ -110,10 +118,12 @@ function valueFor(f: Field, question: string, cfg: SiteConfig): { value: string;
   if (f.type === 'date') value = `${BIRTH_YEAR}-01-15`;
   else if (/mm.?dd.?yy/i.test(f.placeholder)) value = `01/15/${BIRTH_YEAR}`;
   else if (value === String(BIRTH_YEAR)) {
+    // A "19" shown before the field means the year is still wanted — just its last digits.
+    const yearPrefix = !!f.prefix && String(BIRTH_YEAR).startsWith(f.prefix);
     // "How old are you?" needs an age, not a year: the field only accepts 1–3 digits or up to ~150.
     const askedAge = /\bage\b|how old/i.test(`${f.hint} ${question}`) && !/year|born|birth|dob|bday/i.test(`${f.hint} ${question}`);
     const small = (f.maxLength > 0 && f.maxLength <= 3) || (f.max > 0 && f.max <= 150);
-    if (askedAge || small) {
+    if (!yearPrefix && (askedAge || small)) {
       value = String(new Date().getFullYear() - BIRTH_YEAR);
       note = ` (age for birth year ${BIRTH_YEAR})`;
     }
@@ -135,18 +145,51 @@ function valueFor(f: Field, question: string, cfg: SiteConfig): { value: string;
     value = f.type === 'number' ? '1' : 'Test';
     note = ' (no input rule — add one to `inputs`)';
   }
+
+  // "19" is already on screen and the field takes 2 digits: type 65, not 1965.
+  if (f.prefix && value.startsWith(f.prefix) && value.length > f.prefix.length) {
+    value = value.slice(f.prefix.length);
+    note += ` (after the "${f.prefix}" shown before the field)`;
+  }
+  // Still too long for the field: keep the end (a year's last digits), never a truncated start.
+  if (f.maxLength > 0 && value.length > f.maxLength) {
+    value = value.slice(-f.maxLength);
+    note += ` (field takes ${f.maxLength} characters)`;
+  }
   return { value, index: 0, note };
 }
 
 /** Waits for a quiz step that differs from the last one (chat typing, step transitions, branches). */
-async function nextUi(page: Page, lastSig: string, congrats: RegExp, timeout: number): Promise<Ui | undefined> {
+/**
+ * esbuild (via tsx) rewrites named functions with `__name()` calls. Playwright sends the function
+ * source to the page, where that helper does not exist — every read would throw ReferenceError.
+ * Evaluating as source with a one-line shim keeps it working under tsx and under the test runner.
+ */
+function readPage(page: Page): Promise<Ui> {
+  return page.evaluate<Ui>(`(() => { window.__name = window.__name || ((f) => f); return (${readUi.toString()})(); })()`);
+}
+
+/** Phone links visible right now. */
+async function telHrefs(page: Page): Promise<string[]> {
+  return page.locator('a[href^="tel:"]:visible').evaluateAll((els) => els.map((e) => (e as HTMLAnchorElement).getAttribute('href') ?? '')).catch(() => []);
+}
+
+/** A phone link that was not on the page when the quiz started = the quiz finished. */
+async function newTel(page: Page, known: Set<string>): Promise<boolean> {
+  return (await telHrefs(page)).some((href) => !known.has(href));
+}
+
+async function nextUi(page: Page, lastSig: string, congrats: RegExp, timeout: number, knownTels?: Set<string>): Promise<Ui | undefined> {
   const end = Date.now() + timeout;
   while (Date.now() < end) {
     if (congrats.test(page.url())) return undefined;
-    const ui = await page.evaluate(readUi).catch(() => undefined);
+    // The chat ends by typing the congrats messages and a NEW phone number: no question follows.
+    // (A phone in the header was there from the start and means nothing.)
+    if (knownTels && (await newTel(page, knownTels))) return undefined;
+    const ui = await readPage(page).catch(() => undefined);
     if (ui && (ui.options.length || ui.fields.length) && ui.sig !== lastSig) {
       await page.waitForTimeout(400); // let the chat / transition animation finish
-      return (await page.evaluate(readUi).catch(() => undefined)) ?? ui;
+      return (await readPage(page).catch(() => undefined)) ?? ui;
     }
     await page.waitForTimeout(300);
   }
@@ -158,7 +201,7 @@ async function nextUi(page: Page, lastSig: string, congrats: RegExp, timeout: nu
  * data-qa-opt (answer choices), data-qa-in (fields), data-qa-next (Continue/Next/Submit),
  * data-qa-consent (consent / TCPA checkboxes).
  */
-function readUi(): Ui {
+export function readUi(): Ui {
   const NAV = /^(menu|open menu|close menu|close|privacy( policy)?|terms( of (use|service))?|contact( us)?|cookies?|back|previous|prev|skip|log ?in|sign ?in|accept( all)?|reject( all)?|x|×)$/i;
   const NEXT = /^(continue|next|submit|confirm|proceed|finish|done|send|go|→|›|>|see (my )?results|get (my )?(quote|results|started)|check (my )?eligibility|start( now)?)\b/i;
   const CONSENT = /agree|consent|terms|tcpa|authori[sz]e|contact me|permission/i;
@@ -250,6 +293,7 @@ function readUi(): Ui {
       placeholder: el.placeholder || '',
       maxLength: el.maxLength > 0 ? el.maxLength : 0,
       max: Number(el.max) || 0,
+      prefix: (e.parentElement?.querySelector('[class*="prefix" i]')?.textContent ?? '').trim(),
       options: e.tagName === 'SELECT' ? [...(e as HTMLSelectElement).options].map((o) => o.text.trim()) : [],
     };
   });

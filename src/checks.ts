@@ -741,7 +741,12 @@ function claritySection(cap: Capture, cfg: SiteConfig): Section {
         lines: [collects.length ? [`${collects.length} request(s), last status ${collects[collects.length - 1].status ?? '—'} `, m(okCollect ? 'ok' : 'fail')] : ['no ', code('/collect'), ' request — Clarity is not sending data ', m('fail')]],
       },
     ],
-    issues: consoleErrors.length ? [{ issue: ['Console'], detail: chips(consoleErrors.slice(0, 3)), mark: 'fail' }] : [{ issue: ['Console'], detail: ['no Clarity errors'], mark: 'ok' }],
+    // Clarity console errors are reported but never fail the check: they are session-recording
+    // noise (ClarityTracker calls window.clarity() before the tag finished loading) and cost no
+    // leads. What matters — the tag, window.clarity and /collect — is judged by the rows above.
+    issues: consoleErrors.length
+      ? [{ issue: ['Console'], detail: [...chips(consoleErrors.slice(0, 3)), ' — reported only, Clarity errors do not fail this check'], mark: 'warn' }]
+      : [{ issue: ['Console'], detail: ['no Clarity errors'], mark: 'ok' }],
   };
 }
 
