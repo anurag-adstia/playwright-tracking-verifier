@@ -27,6 +27,11 @@ interface Job {
 }
 
 const PORT = Number(process.env.PORT ?? 3000);
+/**
+ * In a container Chromium runs as root (no user namespace) and /dev/shm is tiny, so it needs
+ * these two flags. Set PW_NO_SANDBOX=1 there; locally the defaults stay.
+ */
+const LAUNCH_ARGS = process.env.PW_NO_SANDBOX === '1' ? ['--no-sandbox', '--disable-dev-shm-usage'] : [];
 const PUBLIC_DIR = path.resolve(__dirname, '../../public');
 const MAX_JOBS = 50;
 
@@ -38,7 +43,7 @@ async function execute(job: Job): Promise<void> {
   job.status = 'running';
   job.startedAt = Date.now();
   try {
-    if (!browser?.isConnected()) browser = await chromium.launch();
+    if (!browser?.isConnected()) browser = await chromium.launch({ args: LAUNCH_ARGS });
     job.result = await runSite(browser, makeSite({ url: job.url }), job.notes);
     job.status = 'done';
   } catch (e) {

@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: tracking-check
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    # Chromium needs ~1 GB while a check runs; the 512 MB instance gets OOM-killed mid-run.
+    plan: standard
+    healthCheckPath: /
+    envVars:
+      - key: PW_NO_SANDBOX
+        value: '1'
