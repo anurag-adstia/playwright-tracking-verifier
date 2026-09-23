@@ -1,3 +1,4 @@
+import { spawn } from 'child_process';
 import * as fs from 'fs';
 import * as http from 'http';
 import * as path from 'path';
@@ -38,12 +39,34 @@ const MAX_JOBS = 50;
 const jobs = new Map<string, Job>();
 let queue: Promise<void> = Promise.resolve();
 let browser: Browser | undefined;
+let installed = false;
+
+/**
+ * Launch Chromium. If the host never ran `playwright install` (Render's native runtime keeps the
+ * build cache outside the deployed filesystem), install it once and retry instead of failing
+ * every run with "Executable doesn't exist at …/ms-playwright/…".
+ */
+async function launchBrowser(): Promise<Browser> {
+  try {
+    return await chromium.launch({ args: LAUNCH_ARGS });
+  } catch (e) {
+    if (!/Executable doesn't exist/i.test((e as Error).message) || installed) throw e;
+    installed = true;
+    console.log('Chromium is missing — installing it now (add `playwright install chromium` to the build to avoid this)…');
+    await new Promise<void>((resolve, reject) => {
+      const cli = spawn(process.execPath, [path.join(path.dirname(require.resolve('playwright-core/package.json')), 'cli.js'), 'install', 'chromium'], { stdio: 'inherit' });
+      cli.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`playwright install exited with ${code}`))));
+      cli.on('error', reject);
+    });
+    return chromium.launch({ args: LAUNCH_ARGS });
+  }
+}
 
 async function execute(job: Job): Promise<void> {
   job.status = 'running';
   job.startedAt = Date.now();
   try {
-    if (!browser?.isConnected()) browser = await chromium.launch({ args: LAUNCH_ARGS });
+    if (!browser?.isConnected()) browser = await launchBrowser();
     job.result = await runSite(browser, makeSite({ url: job.url }), job.notes);
     job.status = 'done';
   } catch (e) {
