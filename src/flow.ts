@@ -37,9 +37,14 @@ export async function walkQuiz(page: Page, cfg: SiteConfig, notes: string[]): Pr
   const congrats = new RegExp(cfg.congratsPattern, 'i');
   let lastSig = '';
   for (let step = 0; step < cfg.maxSteps && !congrats.test(page.url()); step++) {
-    const ui = await nextUi(page, lastSig, congrats);
+    // The first question is the slow one: the chat types its intro before showing any answer.
+    const timeout = step === 0 ? cfg.firstQuestionTimeout : cfg.stepTimeout;
+    const ui = await nextUi(page, lastSig, congrats, timeout);
     if (!ui) {
-      if (!congrats.test(page.url())) notes.push(step ? `quiz ended after ${step} step(s): no new question within 15s` : 'no quiz question found on the page');
+      const secs = Math.round(timeout / 1000);
+      if (!congrats.test(page.url())) {
+        notes.push(step ? `quiz ended after ${step} step(s): no new question within ${secs}s` : `no quiz question appeared within ${secs}s`);
+      }
       return;
     }
     lastSig = ui.sig;
@@ -70,7 +75,8 @@ export async function walkQuiz(page: Page, cfg: SiteConfig, notes: string[]): Pr
     const option = page.locator(`[data-qa-opt="${pick.index}"]`);
     await option.click({ timeout: 5000 }).catch(() => option.dispatchEvent('click'));
     // Multi-select, or "select then Continue": nothing new appeared, but a Continue button did.
-    await page.waitForTimeout(1200);
+    // Long enough that a chat still typing its next question is not mistaken for one of those.
+    await page.waitForTimeout(2500);
     const after = await page.evaluate(readUi).catch(() => undefined);
     if (after && after.sig === ui.sig && after.hasNext) await clickNext(page, true);
   }
@@ -132,9 +138,9 @@ function valueFor(f: Field, question: string, cfg: SiteConfig): { value: string;
   return { value, index: 0, note };
 }
 
-/** Waits (max 15s) for a quiz step that differs from the last one. */
-async function nextUi(page: Page, lastSig: string, congrats: RegExp): Promise<Ui | undefined> {
-  const end = Date.now() + 15_000;
+/** Waits for a quiz step that differs from the last one (chat typing, step transitions, branches). */
+async function nextUi(page: Page, lastSig: string, congrats: RegExp, timeout: number): Promise<Ui | undefined> {
+  const end = Date.now() + timeout;
   while (Date.now() < end) {
     if (congrats.test(page.url())) return undefined;
     const ui = await page.evaluate(readUi).catch(() => undefined);

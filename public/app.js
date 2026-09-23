@@ -7,6 +7,23 @@ const STATUS = { queued: 'Waiting for a free browser', running: 'Checking the pa
 
 let timer;
 
+/* Theme: light by default, remembered per browser. */
+const setTheme = (theme) => {
+  document.documentElement.dataset.theme = theme;
+  $('theme').setAttribute('aria-label', `Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`);
+  try {
+    localStorage.setItem('theme', theme);
+  } catch {
+    /* private mode */
+  }
+};
+try {
+  setTheme(localStorage.getItem('theme') === 'dark' ? 'dark' : 'light');
+} catch {
+  setTheme('light');
+}
+$('theme').addEventListener('click', () => setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'));
+
 $('form').addEventListener('submit', async (e) => {
   e.preventDefault();
   clearTimeout(timer);
@@ -86,7 +103,16 @@ function render(job) {
 
   $('overall').className = `pill ${worst}`;
   $('overall').textContent = `${ICON[worst]} ${SHORT[worst]}`;
-  $('resultMeta').textContent = `${job.site} · ${counts.ok} passed · ${counts.warn} warning(s) · ${counts.fail} failed · ${job.seconds}s · ${job.url}`;
+  $('resultSite').textContent = job.site || 'Result';
+  $('resultUrl').textContent = job.url;
+  $('cOk').textContent = counts.ok;
+  $('cWarn').textContent = counts.warn;
+  $('cFail').textContent = counts.fail;
+  $('cTime').textContent = `${job.seconds}s`;
+  // colour a tile only when it has something to report
+  $('cOk').parentElement.className = `stat${counts.ok ? ' is-ok' : ''}`;
+  $('cWarn').parentElement.className = `stat${counts.warn ? ' is-warn' : ''}`;
+  $('cFail').parentElement.className = `stat${counts.fail ? ' is-fail' : ''}`;
 
   const body = $('checks');
   body.textContent = '';

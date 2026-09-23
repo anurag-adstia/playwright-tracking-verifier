@@ -43,6 +43,13 @@ export interface SiteConfig {
   /** The Jitsu library it loads. */
   jitsuScriptPattern: string;
   maxSteps: number;
+  /**
+   * A chat quiz types its messages, and a step quiz mounts its first screen late, so the first
+   * question can take a while. Waiting longer here is what stops "no quiz question appeared".
+   */
+  firstQuestionTimeout: number;
+  /** Wait for each following question (the chat types the next one before showing the answers). */
+  stepTimeout: number;
 }
 
 export type SiteConfigInput = Partial<SiteConfig> & { url: string };
@@ -79,6 +86,8 @@ export const DEFAULTS: Omit<SiteConfig, 'name' | 'url'> = {
   jitsuLoaderPattern: 'jitsu-script\\.js',
   jitsuScriptPattern: '(adstiacms|jitsu)[^/]*/p\\.js(\\?|$)',
   maxSteps: 30,
+  firstQuestionTimeout: 45_000,
+  stepTimeout: 20_000,
 };
 
 export function defineSiteConfig(config: SiteConfigInput): SiteConfigInput {

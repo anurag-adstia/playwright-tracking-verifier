@@ -1,3 +1,5 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import { verdicts, type Mark, type Rich, type Section } from './checks';
 
 /** One site: the quiz walked once, then every check. */
@@ -81,25 +83,9 @@ export function renderReport(runs: RunResult[], startedAt: Date, opts: { embed?:
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Tracking Report</title>
-<style>${CSS}${embed ? 'body{background:transparent}main{padding:0 4px}' : ''}</style></head>
+<style>${CSS()}${embed ? 'body{background:transparent}main{padding:0 4px}' : ''}</style></head>
 <body><main>${header}${body.join('')}</main></body></html>`;
 }
-
-/** Colour tokens, shared by the report and the web UI. */
-export const TOKENS = `
-:root{
-  --bg:#0f1116;--card:#171a21;--card2:#1d212a;--line:#272c37;--text:#e7e9ee;--muted:#98a1b2;
-  --accent:#5b8cff;--code-bg:#232834;--code:#ff8d85;--shadow:0 1px 2px rgba(0,0,0,.4);
-  --ok:#3fb984;--ok-bg:rgba(63,185,132,.14);--warn:#e2b53e;--warn-bg:rgba(226,181,62,.14);
-  --fail:#f2606b;--fail-bg:rgba(242,96,107,.14);--skip:#8b93a3;--skip-bg:rgba(139,147,163,.14);
-}
-@media (prefers-color-scheme:light){:root{
-  --bg:#f5f6f8;--card:#fff;--card2:#fafbfc;--line:#e3e6ec;--text:#161a22;--muted:#5d6675;
-  --accent:#2563eb;--code-bg:#f2f4f7;--code:#c2410c;--shadow:0 1px 2px rgba(16,24,40,.06);
-  --ok:#0f8a5f;--ok-bg:rgba(15,138,95,.10);--warn:#a86a00;--warn-bg:rgba(168,106,0,.10);
-  --fail:#d33a45;--fail-bg:rgba(211,58,69,.10);--skip:#6b7280;--skip-bg:rgba(107,114,128,.10);
-}}
-`;
 
 /** Page frame — only for the standalone report (the web UI has its own). */
 const PAGE_CSS = `
@@ -122,58 +108,17 @@ a{color:var(--accent)}
 `;
 
 /**
- * The report's own components (site header, final table, check cards, flow, pills).
- * The web UI loads these from /report.css and renders the details inline — one page, one scrollbar.
+ * Tokens + components live in public/report.css so the UI and the report always share one file,
+ * and editing it needs no server restart. The standalone report inlines it.
  */
-export const COMPONENT_CSS = `
-h2{font-size:19px;margin:0}
-h3{font-size:15px;margin:0;display:flex;align-items:center;gap:8px}
-.sub{color:var(--muted);font-size:13px;font-weight:400}
-.url{font-size:12.5px;word-break:break-all;display:inline-block;max-width:100%}
-.site{margin-bottom:32px}
-.site:last-child{margin-bottom:0}
-.site-card{background:color-mix(in srgb,var(--card) 72%,transparent);border:1px solid var(--line);border-radius:16px;padding:22px;box-shadow:0 14px 34px rgba(0,0,0,.12)}
-.site-head{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:14px}
+const SHARED_CSS_FILE = path.resolve(__dirname, '../public/report.css');
+export const sharedCss = (): string => {
+  try {
+    return fs.readFileSync(SHARED_CSS_FILE, 'utf8');
+  } catch {
+    return '';
+  }
+};
 
-.pill{display:inline-flex;align-items:center;gap:6px;padding:3px 11px;border-radius:999px;font-size:12.5px;font-weight:600;white-space:nowrap;border:1px solid transparent;line-height:1.5}
-.pill.ok{color:var(--ok);background:var(--ok-bg);border-color:var(--ok-bg)}
-.pill.warn{color:var(--warn);background:var(--warn-bg);border-color:var(--warn-bg)}
-.pill.fail{color:var(--fail);background:var(--fail-bg);border-color:var(--fail-bg)}
-.pill.skip{color:var(--skip);background:var(--skip-bg);border-color:var(--skip-bg)}
+const CSS = () => sharedCss() + PAGE_CSS;
 
-table{width:100%;border-collapse:separate;border-spacing:0;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:0 0 14px;font-size:14px;box-shadow:var(--shadow)}
-th,td{padding:12px 14px;text-align:left;vertical-align:top;border-top:1px solid var(--line);word-break:break-word}
-thead th{border-top:0;background:var(--card2);color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.04em;font-weight:600}
-tbody tr:first-child th,tbody tr:first-child td{border-top:1px solid var(--line)}
-th.st,td.st{width:112px;text-align:right;white-space:nowrap}
-table.final tbody th,table.kv th,table.issues tbody th{width:210px;font-weight:600}
-table.final tbody th a{text-decoration:none;color:inherit}
-table.final tbody th a:hover{text-decoration:underline}
-tr.fail>th,tr.fail>th a{color:var(--fail)}
-td .sub,th .sub{display:block;margin-top:3px}
-
-.checks{display:flex;flex-direction:column;gap:14px}
-.check{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 16px 4px;box-shadow:var(--shadow);transition:border-color .15s ease,transform .15s ease}
-.check:hover{border-color:color-mix(in srgb,var(--accent) 55%,var(--line));transform:translateY(-1px)}
-.check-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
-.head-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
-.num{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;background:var(--card2);border:1px solid var(--line);font-size:12px;color:var(--muted);flex:none}
-.check table{background:var(--card2);box-shadow:none}
-
-pre{background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin:0 0 14px;overflow-x:auto;font:12.5px/1.8 ui-monospace,SFMono-Regular,Consolas,monospace}
-code{background:var(--code-bg);color:var(--code);border:1px solid var(--line);border-radius:5px;padding:1px 6px;font:12.5px ui-monospace,SFMono-Regular,Consolas,monospace;word-break:break-all}
-
-details.path{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:0 16px;margin-top:14px;box-shadow:var(--shadow)}
-details.path summary{cursor:pointer;padding:13px 0;font-weight:600;display:flex;gap:8px;align-items:baseline}
-details.path ol{margin:0 0 14px;padding-left:22px;color:var(--muted);font-size:13px}
-details.path li{margin:3px 0}
-.err{color:var(--fail)}
-@media (max-width:640px){
-  .site-card{padding:14px}
-  th,td{padding:10px 12px}
-  table.final tbody th,table.kv th,table.issues tbody th{width:auto}
-  th.st,td.st{width:auto;text-align:left}
-}
-`;
-
-export const CSS = TOKENS + PAGE_CSS + COMPONENT_CSS;

@@ -5,7 +5,8 @@ import * as path from 'path';
 import { chromium, type Browser } from '@playwright/test';
 import { verdicts } from '../checks';
 import { makeSite } from '../config';
-import { COMPONENT_CSS, plain, renderReport, TOKENS, type RunResult } from '../report';
+// public/report.css is served as a static file, so editing it needs no restart.
+import { plain, renderReport, type RunResult } from '../report';
 import { runSite } from '../run';
 
 /**
@@ -144,9 +145,6 @@ const server = http.createServer((req, res) => {
     // ?embed=1: details only — the UI already shows the header and the final result.
     return send(res, 200, renderReport([job.result], new Date(job.startedAt), { embed: url.searchParams.get('embed') === '1' }), 'text/html');
   }
-
-  // Colours + the report's components: one source of truth for the UI and the report.
-  if (req.method === 'GET' && url.pathname === '/report.css') return send(res, 200, TOKENS + COMPONENT_CSS, 'text/css');
 
   if (req.method === 'GET') return serveStatic(res, url.pathname);
   send(res, 405, JSON.stringify({ error: 'Method not allowed' }));

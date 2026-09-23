@@ -58,7 +58,8 @@ export class Capture {
   /** Script / JSON bodies: the quiz config (ringbaScriptId, callgridCampaignSourceId, pabblyUrl…) is bundled into them. */
   readonly bodies: Array<{ url: string; text: string }> = [];
   readonly scans: PageScan[] = [];
-  readonly consoleErrors: string[] = [];
+  /** Console errors with where they came from, so an error inside a vendor script can be attributed. */
+  readonly consoleErrors: Array<{ text: string; source: string }> = [];
   phoneClick?: PhoneClick;
   cookies: Array<{ name: string; value: string }> = [];
   private siteRoot = '';
@@ -119,8 +120,11 @@ export class Capture {
       if (rec) rec.failure = r.failure()?.errorText ?? 'failed';
     });
     context.on('page', (p) => {
-      p.on('console', (msg) => msg.type() === 'error' && this.consoleErrors.push(msg.text()));
-      p.on('pageerror', (e) => this.consoleErrors.push(e.message));
+      p.on('console', (msg) => {
+        if (msg.type() === 'error') this.consoleErrors.push({ text: msg.text(), source: safe(() => msg.location().url) ?? '' });
+      });
+      // An uncaught error names its script in the stack.
+      p.on('pageerror', (e) => this.consoleErrors.push({ text: e.message, source: /https?:\/\/[^\s)]+/.exec(e.stack ?? '')?.[0] ?? '' }));
     });
   }
 

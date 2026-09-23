@@ -196,8 +196,8 @@ function gtmSection(cap: Capture, cfg: SiteConfig, facts: RunFacts): Section {
     });
   }
 
-  const consoleErrors = cap.consoleErrors.filter((e) => /gtm|googletagmanager|datalayer/i.test(e));
-  if (consoleErrors.length) issues.push({ issue: ['Console'], detail: chips(unique(consoleErrors).slice(0, 3).map((e) => trunc(e, 80))), mark: 'fail' });
+  const consoleErrors = consoleFor(cap, /gtm|googletagmanager|datalayer/i);
+  if (consoleErrors.length) issues.push({ issue: ['Console'], detail: chips(consoleErrors.slice(0, 3)), mark: 'fail' });
 
   return {
     title: 'GTM',
@@ -445,6 +445,11 @@ function keyLine(cap: Capture, key: string, expect: (v: unknown) => boolean, wan
 
 const isTrue = (v: unknown) => v === true || v === 'true';
 
+/** Console errors belonging to a tracker: by message text or by the script that threw them. */
+function consoleFor(cap: Capture, re: RegExp): string[] {
+  return unique(cap.consoleErrors.filter((e) => re.test(e.text) || re.test(e.source)).map((e) => trunc(e.text, 90)));
+}
+
 /** A config key that is not readable from outside, but whose effect is visible at runtime. */
 const inferred = (key: string, note: string): Rich => [code(key), ' not visible in page data ', m('warn'), ` — ${note}`];
 const zipOf = (cfg: SiteConfig) => cfg.inputs.find((r) => /zip/i.test(r.question))?.value ?? '';
@@ -506,9 +511,14 @@ function providerMissing(title: string, facts: RunFacts, detail: Rich): Section 
  * Phone CTA checks shared by Ringba and CallGrid: <a href="tel:">, and after the click
  * Jitsu phone_number_click + GTM phoneNumberClick carrying the displayed number and the IDs.
  */
-function phoneIssues(cap: Capture, provider: string): Section['issues'] {
+function phoneIssues(cap: Capture, provider: string, facts: RunFacts): Section['issues'] {
   const click = cap.phoneClick;
-  if (!click) return [{ issue: ['Phone CTA'], detail: ['no visible ', code('<a href="tel:">'), ' to click'], mark: 'fail' }];
+  if (!click) {
+    // The number only exists at the end of the quiz: before that there is nothing to click.
+    return facts.leadStage
+      ? [{ issue: ['Phone CTA'], detail: ['the quiz reached the phone step but there is no visible ', code('<a href="tel:">'), ' to click'], mark: 'fail' }]
+      : [{ issue: ['Phone CTA'], detail: ['not checked — the quiz did not reach the phone number'], mark: 'skip' }];
+  }
   const shown = digits(click.text);
   const issues: Section['issues'] = [];
 
@@ -545,12 +555,19 @@ function phoneIssues(cap: Capture, provider: string): Section['issues'] {
   return issues;
 }
 
-/** Failed / 4xx+ provider requests and console errors that mention the provider. */
+/**
+ * DevTools → Network + Console for one provider: its failed / 4xx+ requests, and console errors
+ * either mentioning it or thrown by its script. With no provider traffic there is nothing to
+ * judge, so the row says so instead of passing vacuously.
+ */
 function networkIssue(cap: Capture, re: RegExp, provider: string): Section['issues'][number] {
-  const bad = cap.requests.filter((r) => re.test(r.url) && (r.failure || (r.status ?? 0) >= 400)).map((r) => `${r.status ?? r.failure} ${trunc(noQuery(r.url), 70)}`);
-  const logs = cap.consoleErrors.filter((e) => re.test(e)).map((e) => trunc(e, 90));
+  const reqs = cap.requests.filter((r) => re.test(r.url));
+  const bad = reqs.filter((r) => r.failure || (r.status ?? 0) >= 400).map((r) => `${r.status ?? r.failure} ${trunc(noQuery(r.url), 70)}`);
+  const logs = consoleFor(cap, re);
   const all = [...bad, ...logs];
-  return { issue: ['Network / Console'], detail: all.length ? chips(unique(all).slice(0, 5)) : [`no ${provider} errors`], mark: all.length ? 'fail' : 'ok' };
+  if (all.length) return { issue: ['Network / Console'], detail: chips(unique(all).slice(0, 5)), mark: 'fail' };
+  if (!reqs.length) return { issue: ['Network / Console'], detail: [`no ${provider} requests in this run — nothing to check`], mark: 'skip' };
+  return { issue: ['Network / Console'], detail: [`${reqs.length} request(s), none failed · no ${provider} console errors`], mark: 'ok' };
 }
 
 // ------------------------------------------------------------------ 4. Ringba
@@ -632,7 +649,7 @@ function ringbaSection(cap: Capture, cfg: SiteConfig, facts: RunFacts): Section 
       },
       { label: ['Keys pushed', ...(userPushes.length ? [' (', code('type: "User"'), ')'] : [])], lines: keys.length ? groupKeys(keys) : [['nothing pushed to ', code('_rgba_tags')]] },
     ],
-    issues: [...phoneIssues(cap, 'Ringba'), networkIssue(cap, /ringba/i, 'Ringba')],
+    issues: [...phoneIssues(cap, 'Ringba', facts), networkIssue(cap, /ringba/i, 'Ringba')],
   };
 }
 
@@ -684,7 +701,7 @@ function callgridSection(cap: Capture, cfg: SiteConfig, facts: RunFacts): Sectio
         ],
       },
     ],
-    issues: [...phoneIssues(cap, 'CallGrid'), networkIssue(cap, /callgrid/i, 'CallGrid')],
+    issues: [...phoneIssues(cap, 'CallGrid', facts), networkIssue(cap, /callgrid/i, 'CallGrid')],
   };
 }
 
@@ -705,7 +722,7 @@ function claritySection(cap: Capture, cfg: SiteConfig): Section {
     return { title: 'Clarity', head: ['not used on this page'], mark: 'skip', rows: [{ label: ['Tag script'], lines: [['no ', code('clarity.ms/tag/<project id>'), ' request — this template does not include Clarity']] }], issues: [] };
   }
 
-  const consoleErrors = cap.consoleErrors.filter((e) => /clarity/i.test(e));
+  const consoleErrors = consoleFor(cap, /clarity/i);
   // Clarity works if the tag loaded, or if it was cached and clarity is running and collecting.
   const working = (tag ? ok2xx(tag) : installed && !!okCollect) && idOk;
   return {
@@ -724,7 +741,7 @@ function claritySection(cap: Capture, cfg: SiteConfig): Section {
         lines: [collects.length ? [`${collects.length} request(s), last status ${collects[collects.length - 1].status ?? '—'} `, m(okCollect ? 'ok' : 'fail')] : ['no ', code('/collect'), ' request — Clarity is not sending data ', m('fail')]],
       },
     ],
-    issues: consoleErrors.length ? [{ issue: ['Console'], detail: chips(unique(consoleErrors).slice(0, 3).map((e) => trunc(e, 80))), mark: 'fail' }] : [{ issue: ['Console'], detail: ['no Clarity errors'], mark: 'ok' }],
+    issues: consoleErrors.length ? [{ issue: ['Console'], detail: chips(consoleErrors.slice(0, 3)), mark: 'fail' }] : [{ issue: ['Console'], detail: ['no Clarity errors'], mark: 'ok' }],
   };
 }
 
@@ -879,8 +896,8 @@ function jitsuSection(cap: Capture, cfg: SiteConfig, facts: RunFacts): Section {
     });
   }
 
-  const consoleErrors = cap.consoleErrors.filter((e) => /jitsu|adstiacms/i.test(e));
-  if (consoleErrors.length) issues.push({ issue: ['Console'], detail: chips(unique(consoleErrors).slice(0, 3).map((e) => trunc(e, 80))), mark: 'fail' });
+  const consoleErrors = consoleFor(cap, /jitsu|adstiacms/i);
+  if (consoleErrors.length) issues.push({ issue: ['Console'], detail: chips(consoleErrors.slice(0, 3)), mark: 'fail' });
 
   // Events prove the library ran, even when it was served from cache.
   const working = ok2xx(library) || posts.length > 0;
